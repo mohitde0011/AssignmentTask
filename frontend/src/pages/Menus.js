@@ -6,12 +6,12 @@ import openFolder from "../assets/images/icons/openfolder.svg";
 import menu2 from "../assets/images/icons/menu2.svg";
 import arrow from "../assets/images/icons/arrow.svg";
 import { Icons } from '../assets/Icons';
-import DeleteModal from '../components/atoms/deleteModel';
+import DeleteModal from "../components/atoms/DeleteModel"
 import { addMenu, deleteMenu, fetchAllMenus, fetchMenu, fetchParentMenus, updateMenu } from '../api';
-
 // Function to transform parent data
 function transformParentData(data) {
   const result = [];
+
   function traverse(obj) {
     if (obj.id && obj.name) {
       result.push({ id: obj.id.toString(), label: obj.name });
@@ -20,7 +20,14 @@ function transformParentData(data) {
       Object.values(obj.children).forEach(child => traverse(child));
     }
   }
-  data.forEach(item => traverse(item));
+
+  // Check if data is an object or an array
+  if (Array.isArray(data)) {
+    data.forEach(item => traverse(item));
+  } else if (typeof data === 'object' && data !== null) {
+    Object.values(data).forEach(item => traverse(item));
+  }
+
   return result;
 }
 
@@ -34,7 +41,11 @@ const transformData = (data) => {
       children: menu.children ? Object.values(menu.children).map(transform) : []
     };
   };
-  return data.map(transform);
+
+  // Check if data is an object, and if so, convert it to an array
+  const dataArray = Array.isArray(data) ? data : Object.values(data);
+
+  return dataArray.map(transform);
 };
 
 const TreeMenu = ({ menu, depth = 0, expandIt = true, setSelectedMenu, selectedMenu }) => {
@@ -163,12 +174,14 @@ export default function Menus() {
 
   useEffect(() => {
     if (!allMenusData) return;
+    console.log(allMenusData.data.data)
     const transformedData = transformData(allMenusData.data.data);
     setTreeData(transformedData);
   }, [allMenusData]);
 
   useEffect(() => {
     if (!parentMenusData?.data?.data) return;
+    console.log(parentMenusData.data.data)
     setParentSelectionData(transformParentData(parentMenusData.data.data));
   }, [parentMenusData]);
 
@@ -217,6 +230,15 @@ export default function Menus() {
     console.log("submit", selectedMenu)
     console.log("submit", formState)
     const formData = new FormData();
+
+
+    // if (treeData.length < 0) {
+    //   formData.append("parent", 0);
+    //   formData.append("name", formState?.name);
+    //   formData.append("depth", formState?.depth);
+
+    //   return
+    // }
     if (!selectedMenu.isEdit) {
 
       formData.append("parent", +selectedMenu?.parent);
@@ -234,7 +256,7 @@ export default function Menus() {
       addNewMenu(formData);
     }
   };
-
+  console.log(treeData)
   return (
     <>
       <div className="flex-1 bg-white p-6 pl-4 mt-9 sm:mt-0">
@@ -328,7 +350,7 @@ export default function Menus() {
                 value={formState.name}
               />
             </div>
-            <Button loading={isUpdateMenuPending || isAddNewMenuPending} onClick={handleSubmit} disabled={selectedMenu.id === ""}>
+            <Button loading={isUpdateMenuPending || isAddNewMenuPending} onClick={handleSubmit} disabled={!treeData?.length ? false : (selectedMenu.id === "")}>
               {selectedMenu.isEdit ? "Save" : "Add"}
             </Button>
           </form>

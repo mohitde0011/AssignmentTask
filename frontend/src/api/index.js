@@ -125,6 +125,7 @@ export const addMenu = async (formData) => {
 export const fetchParentMenus = async (id) => {
     try {
         const response = await apiClient.get(API_ROUTES.GET_PARENT_MENUS + id);
+        console.log(response)
         return response;
     } catch (error) {
         throw error.response;
