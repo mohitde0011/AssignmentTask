@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRecoilState, } from 'recoil';
 import Input from "../components/atoms/Input";
 import Button from "../components/atoms/Button";
 import openFolder from "../assets/images/icons/openfolder.svg";
 import menu2 from "../assets/images/icons/menu2.svg";
-import arrow from "../assets/images/icons/arrow.svg";
+
 import { Icons } from '../assets/Icons';
 import DeleteModal from "../components/atoms/DeleteModel"
 import { addMenu, deleteMenu, fetchAllMenus, fetchMenu, fetchParentMenus, updateMenu } from '../api';
-// Function to transform parent data
+import { errorState, expandItState, formStateState, parentSelectionDataState, selectedMenuState, treeDataState } from '../recoil/atoms/MenuTree';
+import TreeMenu from '../components/atoms/TreeMenu';
+
+
+
 function transformParentData(data) {
   const result = [];
 
@@ -17,100 +22,46 @@ function transformParentData(data) {
       result.push({ id: obj.id.toString(), label: obj.name });
     }
     if (obj.children) {
-      Object.values(obj.children).forEach(child => traverse(child));
+      Object.values(obj.children).forEach((child) => traverse(child));
     }
   }
 
-  // Check if data is an object or an array
   if (Array.isArray(data)) {
-    data.forEach(item => traverse(item));
-  } else if (typeof data === 'object' && data !== null) {
-    Object.values(data).forEach(item => traverse(item));
+    data.forEach((item) => traverse(item));
+  } else if (typeof data === "object" && data !== null) {
+    Object.values(data).forEach((item) => traverse(item));
   }
 
   return result;
 }
-
-// Function to transform the static data into a tree structure
 
 const transformData = (data) => {
   const transform = (menu) => {
     return {
       id: menu.id,
       name: menu.name,
-      children: menu.children ? Object.values(menu.children).map(transform) : []
+      children: menu.children
+        ? Object.values(menu.children).map(transform)
+        : [],
     };
   };
 
-  // Check if data is an object, and if so, convert it to an array
   const dataArray = Array.isArray(data) ? data : Object.values(data);
 
   return dataArray.map(transform);
 };
 
-const TreeMenu = ({ menu, depth = 0, expandIt = true, setSelectedMenu, selectedMenu }) => {
-  const [isExpanded, setIsExpanded] = useState(expandIt);
-
-  useEffect(() => {
-    setIsExpanded(expandIt);
-  }, [expandIt]);
-
-  const hasChildren = menu.children && menu.children.length > 0;
-
-  return (
-    <div className={`ml-${depth > 0 ? '4' : '0'}`}>
-      <div className="flex items-center">
-        {hasChildren && (
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="mr-1 focus:outline-none"
-          >
-            <img src={arrow} className={`${isExpanded ? "" : "rotate-180"}`} alt="Expand/Collapse" />
-          </button>
-        )}
-        {!hasChildren && <div className="w-4 h-4 mr-1" />}
-        <span className={`cursor-pointer group flex items-center gap-1 ${selectedMenu?.id === menu?.id ? "font-semibold" : ""}`}>
-          <button onClick={() => setSelectedMenu(menu, 'edit')}>{menu.name}</button>
-          <div className='items-center gap-2 hidden group-hover:flex'>
-            <button onClick={() => setSelectedMenu(menu, 'add')}>
-              <img className='h-7' src={Icons.plus} alt="Add" />
-            </button>
-            <button onClick={() => setSelectedMenu(menu, 'delete')}>
-              <img className='h-7' src={Icons.bin} alt="Delete" />
-            </button>
-          </div>
-        </span>
-      </div>
-      {isExpanded && hasChildren && (
-        <div className="ml-4 mt-1 border-l border-gray-300">
-          {menu.children?.length > 0 && menu.children.map((childMenu) => (
-            <div key={childMenu.id} className="relative">
-              <div className="absolute top-3 w-3 border-t border-gray-300" />
-              <TreeMenu
-                menu={childMenu}
-                depth={depth + 1}
-                setSelectedMenu={setSelectedMenu}
-                selectedMenu={selectedMenu}
-              />
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 const defaultState = { id: "", name: "", depth: "", parent: "" };
 const defaultError = { name: "", depth: "" };
 
 export default function Menus() {
-  const [treeData, setTreeData] = useState(null);
-  const [expandIt, setExpandIt] = useState(true);
-  const [error, setError] = useState({ ...defaultError });
-  const [selectedMenu, setSelectedMenu] = useState({ ...defaultState });
-  const [selectedMenuForEdit, setselectedMenuForEdit] = useState(null);
-  const [formState, setFormState] = useState({ ...defaultState });
-  const [parentSelectionData, setParentSelectionData] = useState([]);
+  const [treeData, setTreeData] = useRecoilState(treeDataState);
+  const [expandIt, setExpandIt] = useRecoilState(expandItState);
+  const [error, setError] = useRecoilState(errorState);
+  const [selectedMenu, setSelectedMenu] = useRecoilState(selectedMenuState);
+  const [formState, setFormState] = useRecoilState(formStateState);
+  const [parentSelectionData, setParentSelectionData] = useRecoilState(parentSelectionDataState);
 
   const queryClient = useQueryClient();
 
@@ -120,22 +71,20 @@ export default function Menus() {
   });
 
   const { data: sigleMenu, isLoading: isSigleMenuLoading } = useQuery({
-    queryKey: [formState?.id],
+    queryKey: ["singleData", selectedMenu?.id],
     queryFn: () => fetchMenu(selectedMenu?.id),
-    enabled: (!!selectedMenu?.id && selectedMenu.isEdit)
+    enabled: (!!selectedMenu?.id && selectedMenu?.isEdit)
   });
-  console.log(sigleMenu)
 
   useEffect(() => {
-    if (!sigleMenu) return
-    console.log(sigleMenu)
-    setFormState(sigleMenu?.data?.data)
-  }, [sigleMenu])
+    if (!sigleMenu) return;
+    setFormState({ ...sigleMenu?.data?.data, name: selectedMenu?.name});
+  }, [sigleMenu, setFormState]);
 
   const { data: parentMenusData, isLoading: isParentMenusLoading } = useQuery({
-    queryKey: ["AllParentMenus", formState?.id],
-    queryFn: () => fetchParentMenus(formState?.id),
-    enabled: !!formState?.id
+    queryKey: ["AllParentMenus", selectedMenu?.id],
+    queryFn: () => fetchParentMenus(selectedMenu?.id),
+    enabled: (!!selectedMenu?.id && selectedMenu?.isEdit === true)
   });
 
   const { mutateAsync: addNewMenu, isPending: isAddNewMenuPending } = useMutation({
@@ -148,7 +97,6 @@ export default function Menus() {
     onError: (error) => {
       console.error("Failed to add menu:", error);
       setFormState({ ...defaultState });
-
     }
   });
 
@@ -167,26 +115,24 @@ export default function Menus() {
       setSelectedMenu({ ...defaultState });
     }
   });
+
   useEffect(() => {
-    if (!selectedMenu || selectedMenu.isEdit) return
-    setFormState({ ...defaultState })
-  }, [selectedMenu])
+    if (!selectedMenu || selectedMenu.isEdit) return;
+    setFormState({ ...defaultState });
+  }, [selectedMenu, setFormState]);
 
   useEffect(() => {
     if (!allMenusData) return;
-    console.log(allMenusData.data.data)
     const transformedData = transformData(allMenusData.data.data);
     setTreeData(transformedData);
-  }, [allMenusData]);
+  }, [allMenusData, setTreeData]);
 
   useEffect(() => {
     if (!parentMenusData?.data?.data) return;
-    console.log(parentMenusData.data.data)
     setParentSelectionData(transformParentData(parentMenusData.data.data));
-  }, [parentMenusData]);
+  }, [parentMenusData, setParentSelectionData]);
 
   const handleMenuSelection = (menu, action) => {
-    console.log(menu)
     setSelectedMenu({
       ...menu,
       parent: menu.id,
@@ -216,7 +162,7 @@ export default function Menus() {
     if (!formState?.depth && !(formState?.depth + "".trim())) {
       newError.depth = "Please Enter Depth";
       isValid = false;
-    } else if (parseInt(formState.depth) < -1) {
+    } else if (parseInt(formState.depth) < 0) {
       newError.depth = "Depth must be non-negative";
       isValid = false;
     }
@@ -225,41 +171,27 @@ export default function Menus() {
     return isValid;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (e) => {
+    e.preventDefault();
     if (!isAllValid()) return;
-    console.log("submit", selectedMenu)
-    console.log("submit", formState)
+
     const formData = new FormData();
-
-
-    // if (treeData.length < 0) {
-    //   formData.append("parent", 0);
-    //   formData.append("name", formState?.name);
-    //   formData.append("depth", formState?.depth);
-
-    //   return
-    // }
-    if (!selectedMenu.isEdit) {
-
-      formData.append("parent", +selectedMenu?.parent);
-    }
     formData.append("name", formState?.name);
     formData.append("depth", formState?.depth);
 
     if (selectedMenu.isEdit) {
       formData.append("parent", (formState?.parent));
       formData.append("id", formState?.id);
-
       updateThisMenu(formData);
     } else {
-
+      formData.append("parent", +selectedMenu?.parent);
       addNewMenu(formData);
     }
   };
-  console.log(treeData)
+
   return (
     <>
-      <div className="flex-1 bg-white p-6 pl-4 mt-9 sm:mt-0">
+      <div className="flex-1 bg-white p-6 pl-4 mt-9 md:mt-0">
         <div className="text-sm text-gray-500 mb-4 flex items-center">
           <span className="mr-2"><img className="h-5 invert" src={openFolder} alt="Open Folder" /></span>
           / Menus
@@ -274,24 +206,24 @@ export default function Menus() {
             <option>system management</option>
           </select>
         </div>
-        <div className="flex w-full justify-between flex-col-reverse sm:flex-row gap-5 sm:gap-0">
+        <div className="flex w-full justify-between flex-col-reverse    md:flex-row gap-8 md:gap-1">
           <div className="w-full">
             <div className="flex mb-3">
               <button
                 onClick={() => setExpandIt(true)}
-                className={`${expandIt ? "bg-[#1d2939] text-white" : "bg-gray-200 text-[#475467] border border-[#d0d5dd]"} hover:bg-[#1d2939] hover:text-white px-4 py-2 rounded-full mr-4`}
+                className={`${expandIt ? "bg-[#1d2939] text-white " : "   bg-gray-200 text-[#475467] border border-[#d0d5dd]"}  first-letter: px-4 py-2 rounded-full mr-4`}
               >
                 Expand All
               </button>
               <button
                 onClick={() => setExpandIt(false)}
-                className={`${!expandIt ? "bg-[#1d2939] text-white" : "bg-gray-200 text-[#475467] border border-[#d0d5dd]"} px-4 py-2 rounded-full`}
+                className={`${!expandIt ? "bg-[#1d2939] text-white" : "bg-gray-200 text-[#475467] border border-[#d0d5dd]"} px-4 py-2 rounded-full `}
               >
                 Collapse All
               </button>
             </div>
 
-            <> <div className="mb-6 rounded-md p-4 w-full">
+            {!isAllMenusLoading ? <div className="mb-6 rounded-md p-4 w-full">
               {treeData?.length > 0 && treeData.map((menu) => (
                 <TreeMenu
                   key={menu.id}
@@ -301,16 +233,16 @@ export default function Menus() {
                   expandIt={expandIt}
                 />
               ))}
-            </div></>
+            </div> : <div className='flex  py-7 justify-center'><img className='h-7' src={Icons.loader} /></div>}
 
           </div>
 
-          <form className="bg-gray-100 p-4 pt-0 rounded-md w-full">
+          <form onSubmit={handleSubmit} className="bg-gray-100 p-4 pt-0 rounded-md w-full">
             <div className="mb-4">
               <Input
                 label="MenuID"
                 disabled={true}
-                className="w-full bg-[#f9fafb] text-[#667085]"
+                className="w-full bg-[#f4f7fa] text-[#667085]"
                 value={!selectedMenu?.isEdit ? "" : formState?.id}
               />
             </div>
@@ -318,18 +250,20 @@ export default function Menus() {
               <Input
                 label="Depth"
                 name="depth"
+                type="number"
+                disabled={selectedMenu?.isEdit === true}
                 error={error?.depth}
                 handleChange={handleInputChange}
-                className="bg-[#f9fafb] text-[#667085] rounded-md"
+                className="bg-[#f4f7fa] text-[#667085] rounded-md"
                 value={formState.depth}
               />
             </div>
             <div className="mb-6">
-              <label className="block text-sm font-medium text-[#475467]">Parent</label>
+              <label className="block  text-sm font-medium text-[#475467]">Parent</label>
               <select
                 disabled={!parentSelectionData.length || !selectedMenu.isEdit}
-                className="w-64 border rounded-md p-2 bg-[#f9fafb] font-medium text-[#1d2939] outline-none border-none"
-                value={selectedMenu.parent}
+                className="w-64 disabled:cursor-not-allowed border rounded-md p-2 bg-[#f4f7fa] font-medium text-[#1d2939] outline-none border-none"
+                defaultValue={selectedMenu.parent}
                 onChange={(e) => setFormState(prev => ({ ...prev, parent: e.target.value }))}
               >
                 {selectedMenu.isEdit
@@ -346,11 +280,11 @@ export default function Menus() {
                 name="name"
                 error={error?.name}
                 handleChange={handleInputChange}
-                className="bg-[#f9fafb] text-[#667085] rounded-md"
+                className="bg-[#f4f7fa] text-[#667085] rounded-md"
                 value={formState.name}
               />
             </div>
-            <Button loading={isUpdateMenuPending || isAddNewMenuPending} onClick={handleSubmit} disabled={!treeData?.length ? false : (selectedMenu.id === "")}>
+            <Button title={!treeData?.length ? false : (selectedMenu.id === "") ? "Click a menu on the left to edit, or hover and click '+' to add a new menu": ""} type='submit' loading={isUpdateMenuPending || isAddNewMenuPending || isSigleMenuLoading || isParentMenusLoading} onClick={handleSubmit} disabled={!treeData?.length ? false : (selectedMenu.id === "")}>
               {selectedMenu.isEdit ? "Save" : "Add"}
             </Button>
           </form>
@@ -360,34 +294,10 @@ export default function Menus() {
         <DeleteModal
           deleteCallback={() => deleteSelectedMenu(selectedMenu.id)}
           loading={isDeleteMenuPending}
-          message={<>Are you sure you want to delete this Menu {selectedMenu.name}?</>}
+          message={<>Are you sure you want to delete this Menu <b>&apos;{selectedMenu.name}&apos;</b>?</>}
           closeModal={() => setSelectedMenu(prev => ({ ...prev, isDelete: false }))}
         />
       )}
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

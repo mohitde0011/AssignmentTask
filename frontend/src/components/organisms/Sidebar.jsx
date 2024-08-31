@@ -109,7 +109,7 @@ export default function Sidebar() {
   return (
     <>
       {/* Mobile burger icon */}
-      <div className="md:hidden fixed top-4 left-4 z-50">
+      <div className="md:hidden fixed top-4 left-4 z-500 bg-white ">
         <img
           src={Icons.openBurgur}
           alt="Menu"

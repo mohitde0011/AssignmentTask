@@ -6,6 +6,7 @@ export default function Input({ title,
     value,
     label,
     accept,
+    type="text",
     handleChange,
     error,
     className = "",
@@ -22,9 +23,10 @@ export default function Input({ title,
             <input
                   {...props}
                 id={id}
-                className={`   p-2 rounded-md  ${error ? 'outline-red-500 ' : ''} ${className} `}
+                className={` disabled:cursor-not-allowed  p-2 rounded-md  ${error ? 'outline-red-500 ' : ''} ${className} `}
                 value={value}
                 disabled={disabled}
+                type={type}
                 autoFocus={autoFocus || error}
                 onChange={handleChange}
                 readOnly={readOnly}
